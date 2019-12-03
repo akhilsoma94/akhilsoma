@@ -1,5 +1,21 @@
 #!/bin/bash
 
+sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+
+setenforce Permissive
+
+timedatectl set-timezone "Asia/Kolkata"
+
+rpm -q ntp
+
+if [ "$?" -ne 0 ]; then
+  yum -y install ntp
+fi
+
+
+systemctl enable ntpdate
+systemctl start ntpdate
+
 RUNUSER=`/bin/whoami`
 
 # serverrpm="chef-server-core-13.0.17-1.el7.x86_64.rpm"
@@ -43,19 +59,10 @@ if [ "$?"  -ne 0 ]; then
   yum install -y wget
 fi
 
-rpm -q "$ntpinfo"
-if [ "$?" -ne 0 ]; then
-  yum install -y ntp
-fi
-
-#seting date and time
-timedatectl set-timezone "Asia/Kolkata"
-
-setenforce permissive
-
 # check download dir, if not create it
 if [ ! -d "cheftools" ]; then
   mkdir cheftools
+  cp /vagrant/*.rpm cheftools
 fi
 
 cd cheftools
@@ -107,6 +114,7 @@ fi
 
 # Reconfigure Chef Server, only at first time
 
+sleep 10
 chef-server-ctl reconfigure
 
 # Reconfigure Chef Manage, only at first time
@@ -115,6 +123,14 @@ chef-manage-ctl reconfigure --accept-license
 
 echo 'reconfigured successfully'
 chef-server-ctl status
+
+if [ ! -d "/var/opt/chef-backup" ]; then
+  mkdir -p "/var/opt/chef-backup"
+fi
+
+cp /vagrant/chef-backup.tgz /var/opt/chef-backup
+chef-server-ctl restore /var/opt/chef-backup/chef-backup.tgz
+
 
 username="centos"
 firstname="centos"
@@ -126,7 +142,7 @@ passwd="centos123"
 orgname=redhat
 orgfullname='redhat pvt ltd'
 
-echo 'creating a user $username'
+echo 'creating a user'
 
 chef-server-ctl user-show $username
 if [ "$?" -ne 0 ]; then
